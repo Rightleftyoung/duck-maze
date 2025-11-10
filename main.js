@@ -275,7 +275,6 @@ function drawMaze() {
   drawGoal(cellSize);
   drawCat(cellSize);
   drawDuck(cellSize);
-  drawFog(cellSize);
 }
 
 function drawDuck(cellSize) {
@@ -300,18 +299,6 @@ function drawDuck(cellSize) {
   ctx.beginPath();
   ctx.arc(x - radius * 0.2, y - radius * 0.3, radius * 0.12, 0, Math.PI * 2);
   ctx.fill();
-}
-
-function drawFog(cellSize) {
-  const visionRadius = Math.max(cellSize * (mazeSize <= 10 ? 2 : 1.5), 55);
-  ctx.save();
-  ctx.fillStyle = 'rgba(5, 10, 35, 0.72)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.globalCompositeOperation = 'destination-out';
-  ctx.beginPath();
-  ctx.arc(player.col * cellSize + cellSize / 2, player.row * cellSize + cellSize / 2, visionRadius, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
 }
 
 function drawGoal(cellSize) {

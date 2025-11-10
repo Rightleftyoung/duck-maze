@@ -6,7 +6,7 @@ body {
   margin: 0;
   padding: 16px;
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background: radial-gradient(circle, #fef8e7 0%, #fcd77b 100%);
+  background: #ffffff;
   color: #1f1b0d;
   min-height: 100vh;
   display: flex;
@@ -16,7 +16,7 @@ body {
 
 .app {
   width: min(90vw, 660px);
-  background: rgba(255, 255, 255, 0.9);
+  background: #ffffff;
   border-radius: 16px;
   padding: 24px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
@@ -28,10 +28,19 @@ header {
 
 .controls {
   display: flex;
-  gap: 16px;
+  gap: 20px;
+  flex-wrap: wrap;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   margin: 12px 0 24px;
+}
+
+.primary-controls {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 button,
@@ -67,10 +76,10 @@ select:hover {
 }
 
 .touch-controls {
-  margin-top: 20px;
+  margin-top: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(60px, 24vw));
-  grid-template-rows: repeat(3, minmax(50px, 18vw));
+  grid-template-columns: repeat(3, 70px);
+  grid-template-rows: repeat(3, 60px);
   grid-template-areas:
     '. up .'
     'left . right'
@@ -80,7 +89,7 @@ select:hover {
 }
 
 .touch-controls button {
-  font-size: clamp(1rem, 5vw, 1.35rem);
+  font-size: 1.25rem;
   border-radius: 12px;
   border-width: 3px;
   touch-action: manipulation;
@@ -102,12 +111,9 @@ select:hover {
   grid-area: right;
 }
 
-@media (min-width: 700px) {
-  body {
-    padding: 32px;
-  }
-
+@media (max-width: 640px) {
   .touch-controls {
-    display: none;
+    grid-template-columns: repeat(3, minmax(60px, 24vw));
+    grid-template-rows: repeat(3, minmax(50px, 18vw));
   }
 }
