@@ -1,0 +1,113 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 16px;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: radial-gradient(circle, #fef8e7 0%, #fcd77b 100%);
+  color: #1f1b0d;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app {
+  width: min(90vw, 660px);
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+header {
+  text-align: center;
+}
+
+.controls {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  align-items: center;
+  margin: 12px 0 24px;
+}
+
+button,
+select {
+  font-size: 1rem;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 2px solid #f7b733;
+  background: #fff2c0;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+button:hover,
+select:hover {
+  background: #ffe48c;
+}
+
+#maze {
+  display: block;
+  margin: 0 auto;
+  width: min(100%, 600px);
+  height: auto;
+  border: 10px solid #1f1b0d;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+#status {
+  text-align: center;
+  min-height: 1.5rem;
+  font-weight: 600;
+}
+
+.touch-controls {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(60px, 24vw));
+  grid-template-rows: repeat(3, minmax(50px, 18vw));
+  grid-template-areas:
+    '. up .'
+    'left . right'
+    '. down .';
+  gap: 10px;
+  justify-content: center;
+}
+
+.touch-controls button {
+  font-size: clamp(1rem, 5vw, 1.35rem);
+  border-radius: 12px;
+  border-width: 3px;
+  touch-action: manipulation;
+}
+
+.touch-controls [data-dir="top"] {
+  grid-area: up;
+}
+
+.touch-controls [data-dir="left"] {
+  grid-area: left;
+}
+
+.touch-controls [data-dir="bottom"] {
+  grid-area: down;
+}
+
+.touch-controls [data-dir="right"] {
+  grid-area: right;
+}
+
+@media (min-width: 700px) {
+  body {
+    padding: 32px;
+  }
+
+  .touch-controls {
+    display: none;
+  }
+}

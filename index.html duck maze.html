@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Duck Maze</title>
+  <link rel="stylesheet" href="main.css" />
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>Duck Maze</h1>
+      <p>Guide the duck to the pond while dodging the hungry cat. Use arrow keys/WASD or the touch pad.</p>
+    </header>
+    <section class="controls">
+      <button id="regen" type="button">New Maze</button>
+      <label>
+        Size
+        <select id="size">
+          <option value="10">Small</option>
+          <option value="15" selected>Medium</option>
+          <option value="20">Large</option>
+        </select>
+      </label>
+    </section>
+    <canvas id="maze" width="600" height="600" aria-label="Duck Maze"></canvas>
+    <p id="status" role="status" aria-live="polite"></p>
+    <section class="touch-controls" aria-label="Touch controls" role="group">
+      <button data-dir="top" aria-label="Move Up">▲</button>
+      <button data-dir="left" aria-label="Move Left">◀</button>
+      <button data-dir="bottom" aria-label="Move Down">▼</button>
+      <button data-dir="right" aria-label="Move Right">▶</button>
+    </section>
+  </main>
+  <script src="main.js" type="module"></script>
+</body>
+</html>
