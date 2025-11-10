@@ -4,6 +4,7 @@ const statusEl = document.getElementById('status');
 const timerEl = document.getElementById('timer');
 const regenBtn = document.getElementById('regen');
 const sizeSelect = document.getElementById('size');
+const speedSelect = document.getElementById('speed');
 const touchButtons = document.querySelectorAll('.touch-controls button');
 const appEl = document.querySelector('.app');
 
@@ -36,11 +37,17 @@ let catMoveTimeoutId = null;
 let catMovesTaken = 0;
 let timerIntervalId = null;
 let timeLeftMs = 0;
+let catBaseDelay = 520;
+let catMinDelay = 160;
 let suppressNextRegenClick = false;
-const CAT_BASE_DELAY = 520;
-const CAT_MIN_DELAY = 160;
 const ROUND_TIME_MS = 40000;
 const TIMER_TICK_MS = 100;
+
+const SPEED_PRESETS = {
+  chill: { base: 860, min: 320 },
+  normal: { base: 520, min: 160 },
+  furious: { base: 420, min: 110 }
+};
 
 function createGrid(size) {
   return Array.from({ length: size }, (_, row) =>
@@ -121,48 +128,6 @@ function ensureStartFork(grid) {
   if (!closed.length) return;
   const pick = closed[Math.floor(Math.random() * closed.length)];
   removeWalls(start, pick.neighbor, pick.dir);
-}
-
-function carvePathCells(path) {
-  for (let i = 0; i < path.length - 1; i += 1) {
-    const current = path[i];
-    const next = path[i + 1];
-    const dr = next.row - current.row;
-    const dc = next.col - current.col;
-
-    let direction = null;
-    if (dr === -1) direction = 'top';
-    else if (dr === 1) direction = 'bottom';
-    else if (dc === -1) direction = 'left';
-    else if (dc === 1) direction = 'right';
-
-    if (direction) {
-      removeWalls(current, next, direction);
-    }
-  }
-}
-
-function ensureSecondRouteToExit(grid) {
-  const size = grid.length;
-  if (size < 2) return;
-
-  const topThenDown = [];
-  for (let col = 0; col < size; col += 1) {
-    topThenDown.push(grid[0][col]);
-  }
-  for (let row = 1; row < size; row += 1) {
-    topThenDown.push(grid[row][size - 1]);
-  }
-
-  const leftThenRight = [];
-  for (let row = 0; row < size; row += 1) {
-    leftThenRight.push(grid[row][0]);
-  }
-  for (let col = 1; col < size; col += 1) {
-    leftThenRight.push(grid[size - 1][col]);
-  }
-
-  [topThenDown, leftThenRight].forEach(path => carvePathCells(path));
 }
 
 function removeWalls(current, next, direction) {
@@ -378,8 +343,8 @@ function moveCatTowardPlayer() {
 
 function getCatDelay() {
   const tension = catAggressionFactor();
-  const dynamicDelay = CAT_BASE_DELAY - tension * 320;
-  return Math.max(CAT_MIN_DELAY, dynamicDelay);
+  const dynamicDelay = catBaseDelay - tension * 320;
+  return Math.max(catMinDelay, dynamicDelay);
 }
 
 function catAggressionFactor() {
@@ -506,10 +471,13 @@ function startGame() {
   stopCatChase();
   stopRoundTimer();
   mazeSize = parseInt(sizeSelect.value, 10);
+  const speedPreset = SPEED_PRESETS[speedSelect.value] || SPEED_PRESETS.normal;
+  catBaseDelay = speedPreset.base;
+  catMinDelay = speedPreset.min;
   maze = carvePassages(mazeSize);
   addAlternateRoute(maze);
+  addAlternateRoute(maze);
   ensureStartFork(maze);
-  ensureSecondRouteToExit(maze);
   player = { row: 0, col: 0 };
   goal = { row: mazeSize - 1, col: mazeSize - 1 };
   cat = { row: mazeSize - 1, col: 0 };
@@ -539,6 +507,7 @@ regenBtn.addEventListener('click', event => {
   startGame();
 });
 sizeSelect.addEventListener('change', startGame);
+speedSelect.addEventListener('change', startGame);
 window.addEventListener('keydown', handleKeydown);
 window.addEventListener('resize', () => resizeCanvas(true));
 
