@@ -7,6 +7,7 @@ const sizeSelect = document.getElementById('size');
 const speedSelect = document.getElementById('speed');
 const touchButtons = document.querySelectorAll('.touch-controls button');
 const appEl = document.querySelector('.app');
+const mazeAreaEl = document.querySelector('.maze-area');
 
 const DIRS = {
   top: { dr: -1, dc: 0 },
@@ -427,8 +428,12 @@ function checkCatCatch() {
 function resizeCanvas(redraw = true) {
   if (!appEl) return;
   const padding = 48;
-  const available = Math.max(220, appEl.clientWidth - padding);
-  const size = Math.min(600, available);
+  const availableWidth = Math.max(220, appEl.clientWidth - padding);
+  const availableHeight = Math.max(
+    220,
+    (mazeAreaEl?.clientHeight || window.innerHeight) - 40
+  );
+  const size = Math.min(640, availableWidth, availableHeight);
   canvas.width = size;
   canvas.height = size;
   if (redraw && maze.length) {

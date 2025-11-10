@@ -12,36 +12,40 @@
       <h1>Duck Maze</h1>
       <p>Guide the duck to the pond while dodging the hungry cat. Use arrow keys/WASD or the touch pad.</p>
     </header>
-    <section class="controls">
-      <div class="primary-controls">
-        <button id="regen" type="button">New Maze</button>
-        <label>
-          Size
-          <select id="size">
-            <option value="10">Small</option>
-            <option value="15" selected>Medium</option>
-            <option value="20">Large</option>
-          </select>
-        </label>
-        <label>
-          Cat Speed
-          <select id="speed">
-            <option value="chill">Chill</option>
-            <option value="normal" selected>Normal</option>
-            <option value="furious">Furious</option>
-          </select>
-        </label>
-      </div>
-      <div class="touch-controls" aria-label="Touch controls" role="group">
-        <button data-dir="top" aria-label="Move Up">▲</button>
-        <button data-dir="left" aria-label="Move Left">◀</button>
-        <button data-dir="bottom" aria-label="Move Down">▼</button>
-        <button data-dir="right" aria-label="Move Right">▶</button>
+    <section class="controls-bar">
+      <button id="regen" type="button">New Maze</button>
+      <label>
+        Size
+        <select id="size">
+          <option value="10">Small</option>
+          <option value="15" selected>Medium</option>
+          <option value="20">Large</option>
+        </select>
+      </label>
+      <label>
+        Cat Speed
+        <select id="speed">
+          <option value="chill">Chill</option>
+          <option value="normal" selected>Normal</option>
+          <option value="furious">Furious</option>
+        </select>
+      </label>
+    </section>
+    <section class="status-block">
+      <p id="status" role="status" aria-live="polite"></p>
+      <p id="timer" aria-live="polite">Time: 45.0s</p>
+    </section>
+    <div class="touch-controls" aria-label="Touch controls" role="group">
+      <button data-dir="top" aria-label="Move Up">▲</button>
+      <button data-dir="left" aria-label="Move Left">◀</button>
+      <button data-dir="bottom" aria-label="Move Down">▼</button>
+      <button data-dir="right" aria-label="Move Right">▶</button>
+    </div>
+    <section class="maze-area" aria-label="Maze viewport">
+      <div class="maze-scroll">
+        <canvas id="maze" width="600" height="600" aria-label="Duck Maze"></canvas>
       </div>
     </section>
-    <canvas id="maze" width="600" height="600" aria-label="Duck Maze"></canvas>
-    <p id="status" role="status" aria-live="polite"></p>
-    <p id="timer" aria-live="polite">Time: 45.0s</p>
   </main>
   <script src="main.js?v=2" type="module"></script>
 </body>
