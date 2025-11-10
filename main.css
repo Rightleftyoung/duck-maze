@@ -75,6 +75,12 @@ select:hover {
   font-weight: 600;
 }
 
+#timer {
+  text-align: center;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
 .touch-controls {
   margin-top: 0;
   display: grid;

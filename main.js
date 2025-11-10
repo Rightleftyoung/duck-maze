@@ -1,6 +1,7 @@
 const canvas = document.getElementById('maze');
 const ctx = canvas.getContext('2d');
 const statusEl = document.getElementById('status');
+const timerEl = document.getElementById('timer');
 const regenBtn = document.getElementById('regen');
 const sizeSelect = document.getElementById('size');
 const touchButtons = document.querySelectorAll('.touch-controls button');
@@ -33,9 +34,13 @@ let gameWon = false;
 let gameLost = false;
 let catMoveTimeoutId = null;
 let catMovesTaken = 0;
+let timerIntervalId = null;
+let timeLeftMs = 0;
 let suppressNextRegenClick = false;
-const CAT_BASE_DELAY = 620;
-const CAT_MIN_DELAY = 230;
+const CAT_BASE_DELAY = 520;
+const CAT_MIN_DELAY = 160;
+const ROUND_TIME_MS = 40000;
+const TIMER_TICK_MS = 100;
 
 function createGrid(size) {
   return Array.from({ length: size }, (_, row) =>
@@ -373,7 +378,7 @@ function moveCatTowardPlayer() {
 
 function getCatDelay() {
   const tension = catAggressionFactor();
-  const dynamicDelay = CAT_BASE_DELAY - tension * 300;
+  const dynamicDelay = CAT_BASE_DELAY - tension * 320;
   return Math.max(CAT_MIN_DELAY, dynamicDelay);
 }
 
@@ -407,10 +412,47 @@ function stopCatChase() {
   }
 }
 
+function startRoundTimer() {
+  stopRoundTimer();
+  timeLeftMs = ROUND_TIME_MS;
+  updateTimerDisplay();
+  timerIntervalId = setInterval(() => {
+    timeLeftMs -= TIMER_TICK_MS;
+    if (timeLeftMs <= 0) {
+      timeLeftMs = 0;
+      updateTimerDisplay();
+      handleTimeExpired();
+      return;
+    }
+    updateTimerDisplay();
+  }, TIMER_TICK_MS);
+}
+
+function stopRoundTimer() {
+  if (timerIntervalId) {
+    clearInterval(timerIntervalId);
+    timerIntervalId = null;
+  }
+}
+
+function updateTimerDisplay() {
+  if (!timerEl) return;
+  timerEl.textContent = `Time: ${(timeLeftMs / 1000).toFixed(1)}s`;
+}
+
+function handleTimeExpired() {
+  if (gameWon || gameLost) return;
+  gameLost = true;
+  stopCatChase();
+  stopRoundTimer();
+  statusEl.textContent = 'Time ran out! The cat got you. Tap New Maze to retry.';
+}
+
 function checkCatCatch() {
   if (player.row === cat.row && player.col === cat.col) {
     gameLost = true;
     stopCatChase();
+    stopRoundTimer();
     statusEl.textContent = 'Oh no! The cat caught you. Hit New Maze to try again.';
     return true;
   }
@@ -442,6 +484,7 @@ function handleMove(direction) {
     gameWon = true;
     statusEl.textContent = 'Quack! You found the pond! You escaped the cat!';
     stopCatChase();
+    stopRoundTimer();
     return;
   }
 
@@ -461,6 +504,7 @@ function handleKeydown(event) {
 
 function startGame() {
   stopCatChase();
+  stopRoundTimer();
   mazeSize = parseInt(sizeSelect.value, 10);
   maze = carvePassages(mazeSize);
   addAlternateRoute(maze);
@@ -475,6 +519,7 @@ function startGame() {
   resizeCanvas(false);
   drawMaze();
   startCatChase();
+  startRoundTimer();
 }
 
 regenBtn.addEventListener('pointerdown', event => {
