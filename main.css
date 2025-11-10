@@ -73,17 +73,17 @@ select:hover {
 
 .maze-scroll {
   background: #f8fbff;
-  border: 10px solid #1f1b0d;
-  border-radius: 12px;
+  border: 16px solid #1f1b0d;
+  border-radius: 24px;
   width: 100%;
-  max-height: calc(100vh - 320px);
+  max-height: calc(100vh - 240px);
   overflow: auto;
 }
 
 #maze {
   display: block;
   margin: 0 auto;
-  width: min(100%, 640px);
+  width: min(100%, 900px);
   height: auto;
   background: transparent;
 }

@@ -41,6 +41,8 @@ let timeLeftMs = 0;
 let catBaseDelay = 520;
 let catMinDelay = 160;
 let suppressNextRegenClick = false;
+let canvasDisplaySize = 600;
+let touchStartPoint = null;
 const ROUND_TIME_MS = 40000;
 const TIMER_TICK_MS = 100;
 
@@ -49,6 +51,7 @@ const SPEED_PRESETS = {
   normal: { base: 520, min: 160 },
   furious: { base: 420, min: 110 }
 };
+const MAX_CANVAS_SIZE = 900;
 
 function createGrid(size) {
   return Array.from({ length: size }, (_, row) =>
@@ -211,11 +214,11 @@ function nextStepTowards(start, target) {
 
 function drawMaze() {
   const size = maze.length;
-  const cellSize = canvas.width / size;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const cellSize = canvasDisplaySize / size;
+  ctx.clearRect(0, 0, canvasDisplaySize, canvasDisplaySize);
 
   ctx.strokeStyle = '#1f1b0d';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = Math.max(1.5, canvasDisplaySize / (size * 18));
   ctx.lineCap = 'round';
 
   maze.forEach(row => {
@@ -428,14 +431,19 @@ function checkCatCatch() {
 function resizeCanvas(redraw = true) {
   if (!appEl) return;
   const padding = 48;
-  const availableWidth = Math.max(220, appEl.clientWidth - padding);
+  const availableWidth = Math.max(260, appEl.clientWidth - padding);
   const availableHeight = Math.max(
-    220,
-    (mazeAreaEl?.clientHeight || window.innerHeight) - 40
+    260,
+    (mazeAreaEl?.clientHeight || window.innerHeight) - 160
   );
-  const size = Math.min(640, availableWidth, availableHeight);
-  canvas.width = size;
-  canvas.height = size;
+  const size = Math.min(MAX_CANVAS_SIZE, availableWidth, availableHeight);
+  const dpr = window.devicePixelRatio || 1;
+  canvasDisplaySize = size;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
+  canvas.width = Math.floor(size * dpr);
+  canvas.height = Math.floor(size * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (redraw && maze.length) {
     drawMaze();
   }
@@ -470,6 +478,28 @@ function handleKeydown(event) {
     event.preventDefault();
     handleMove(KEY_TO_DIR[key]);
   }
+}
+
+function handleCanvasTouchStart(event) {
+  if (!event.touches.length) return;
+  const touch = event.touches[0];
+  touchStartPoint = { x: touch.clientX, y: touch.clientY };
+  event.preventDefault();
+}
+
+function handleCanvasTouchEnd(event) {
+  if (!touchStartPoint || !event.changedTouches.length) return;
+  const touch = event.changedTouches[0];
+  const dx = touch.clientX - touchStartPoint.x;
+  const dy = touch.clientY - touchStartPoint.y;
+  const threshold = 24;
+  touchStartPoint = null;
+  if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return;
+  const direction = Math.abs(dx) > Math.abs(dy)
+    ? (dx > 0 ? 'right' : 'left')
+    : (dy > 0 ? 'bottom' : 'top');
+  handleMove(direction);
+  event.preventDefault();
 }
 
 function startGame() {
@@ -515,6 +545,8 @@ sizeSelect.addEventListener('change', startGame);
 speedSelect.addEventListener('change', startGame);
 window.addEventListener('keydown', handleKeydown);
 window.addEventListener('resize', () => resizeCanvas(true));
+canvas.addEventListener('touchstart', handleCanvasTouchStart, { passive: false });
+canvas.addEventListener('touchend', handleCanvasTouchEnd, { passive: false });
 
 touchButtons.forEach(button => {
   button.addEventListener('pointerdown', event => {
