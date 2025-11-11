@@ -1,10 +1,10 @@
 const canvas = document.getElementById('maze');
 const ctx = canvas.getContext('2d');
 const statusEl = document.getElementById('status');
-const timerEl = document.getElementById('timer');
 const regenBtn = document.getElementById('regen');
 const sizeSelect = document.getElementById('size');
 const speedSelect = document.getElementById('speed');
+const intelligenceSelect = document.getElementById('intelligence');
 const touchButtons = document.querySelectorAll('.touch-controls button');
 const appEl = document.querySelector('.app');
 const mazeAreaEl = document.querySelector('.maze-area');
@@ -36,22 +36,32 @@ let gameWon = false;
 let gameLost = false;
 let catMoveTimeoutId = null;
 let catMovesTaken = 0;
-let timerIntervalId = null;
-let timeLeftMs = 0;
 let catBaseDelay = 520;
 let catMinDelay = 160;
 let suppressNextRegenClick = false;
 let canvasDisplaySize = 600;
 let touchStartPoint = null;
-const ROUND_TIME_MS = 40000;
-const TIMER_TICK_MS = 100;
+let lastPlayerDirection = 'right';
+let catIntelligenceProfile;
 
 const SPEED_PRESETS = {
   chill: { base: 860, min: 320 },
   normal: { base: 520, min: 160 },
   furious: { base: 420, min: 110 }
 };
+const INTELLIGENCE_PROFILES = {
+  simple: { predictionDivisor: 10, dashDistanceDivisor: 3, goalFocus: 0.35, dashSteps: 1 },
+  smart: { predictionDivisor: 5, dashDistanceDivisor: 4, goalFocus: 0.6, dashSteps: 2 },
+  hunter: { predictionDivisor: 3, dashDistanceDivisor: 5, goalFocus: 0.95, dashSteps: 3 }
+};
 const MAX_CANVAS_SIZE = 900;
+const DASH_DISTANCE_THRESHOLD = 3;
+
+catIntelligenceProfile = INTELLIGENCE_PROFILES.smart;
+
+function getSelectedIntelligenceKey() {
+  return intelligenceSelect?.value ?? 'smart';
+}
 
 function createGrid(size) {
   return Array.from({ length: size }, (_, row) =>
@@ -212,6 +222,62 @@ function nextStepTowards(start, target) {
   return { row, col };
 }
 
+function manhattan(a, b) {
+  return Math.abs(a.row - b.row) + Math.abs(a.col - b.col);
+}
+
+function stepFrom(position, direction) {
+  const cell = maze[position.row]?.[position.col];
+  if (!cell || cell.walls[direction]) return null;
+  const { dr, dc } = DIRS[direction];
+  const nextRow = position.row + dr;
+  const nextCol = position.col + dc;
+  if (!maze[nextRow]?.[nextCol]) return null;
+  return { row: nextRow, col: nextCol };
+}
+
+function greedyStepToward(start, target) {
+  const neighbors = getNeighbors(start);
+  if (!neighbors.length) return null;
+  neighbors.sort((a, b) => manhattan(a, target) - manhattan(b, target));
+  return neighbors[0];
+}
+
+function predictPlayerPosition() {
+  const divisor = catIntelligenceProfile?.predictionDivisor ?? 6;
+  const predictionSteps = divisor >= 999 ? 0 : Math.max(1, Math.floor(mazeSize / divisor));
+  let simulated = { ...player };
+  for (let i = 0; i < predictionSteps; i += 1) {
+    const next = stepFrom(simulated, lastPlayerDirection);
+    if (!next) break;
+    simulated = next;
+  }
+  if (simulated.row === player.row && simulated.col === player.col) {
+    const greedy = greedyStepToward(simulated, goal);
+    if (greedy) {
+      simulated = greedy;
+    }
+  }
+  return simulated;
+}
+
+function getCatTarget() {
+  const predicted = predictPlayerPosition();
+  const playerDistanceToGoal = manhattan(player, goal);
+  const catDistanceToGoal = manhattan(cat, goal);
+  const focus = catIntelligenceProfile?.goalFocus ?? 0.5;
+  if (focus > 0 && playerDistanceToGoal < catDistanceToGoal * focus) {
+    return goal;
+  }
+  return predicted;
+}
+
+function shouldCatDash() {
+  const distance = manhattan(cat, player);
+  const divisor = catIntelligenceProfile?.dashDistanceDivisor ?? 5;
+  return distance <= Math.max(DASH_DISTANCE_THRESHOLD, Math.floor(mazeSize / divisor));
+}
+
 function drawMaze() {
   const size = maze.length;
   const cellSize = canvasDisplaySize / size;
@@ -338,11 +404,26 @@ function drawCat(cellSize) {
 
 function moveCatTowardPlayer() {
   if (!maze.length || gameWon || gameLost) return;
-  const next = nextStepTowards(cat, player);
-  if (!next || (next.row === cat.row && next.col === cat.col)) return;
-  cat = next;
-  drawMaze();
-  checkCatCatch();
+  const profileDashSteps = catIntelligenceProfile?.dashSteps ?? 2;
+  const stepsToTake = shouldCatDash() ? profileDashSteps : 1;
+  let moved = false;
+
+  for (let i = 0; i < stepsToTake; i += 1) {
+    const target = getCatTarget();
+    const next = nextStepTowards(cat, target);
+    if (!next || (next.row === cat.row && next.col === cat.col)) break;
+    cat = next;
+    moved = true;
+    if (checkCatCatch()) {
+      drawMaze();
+      return;
+    }
+  }
+
+  if (moved) {
+    drawMaze();
+    checkCatCatch();
+  }
 }
 
 function getCatDelay() {
@@ -381,47 +462,10 @@ function stopCatChase() {
   }
 }
 
-function startRoundTimer() {
-  stopRoundTimer();
-  timeLeftMs = ROUND_TIME_MS;
-  updateTimerDisplay();
-  timerIntervalId = setInterval(() => {
-    timeLeftMs -= TIMER_TICK_MS;
-    if (timeLeftMs <= 0) {
-      timeLeftMs = 0;
-      updateTimerDisplay();
-      handleTimeExpired();
-      return;
-    }
-    updateTimerDisplay();
-  }, TIMER_TICK_MS);
-}
-
-function stopRoundTimer() {
-  if (timerIntervalId) {
-    clearInterval(timerIntervalId);
-    timerIntervalId = null;
-  }
-}
-
-function updateTimerDisplay() {
-  if (!timerEl) return;
-  timerEl.textContent = `Time: ${(timeLeftMs / 1000).toFixed(1)}s`;
-}
-
-function handleTimeExpired() {
-  if (gameWon || gameLost) return;
-  gameLost = true;
-  stopCatChase();
-  stopRoundTimer();
-  statusEl.textContent = 'Time ran out! The cat got you. Tap New Maze to retry.';
-}
-
 function checkCatCatch() {
   if (player.row === cat.row && player.col === cat.col) {
     gameLost = true;
     stopCatChase();
-    stopRoundTimer();
     statusEl.textContent = 'Oh no! The cat caught you. Hit New Maze to try again.';
     return true;
   }
@@ -456,13 +500,13 @@ function handleMove(direction) {
 
   const { dr, dc } = DIRS[direction];
   player = { row: player.row + dr, col: player.col + dc };
+  lastPlayerDirection = direction;
   drawMaze();
 
   if (player.row === goal.row && player.col === goal.col) {
     gameWon = true;
     statusEl.textContent = 'Quack! You found the pond! You escaped the cat!';
     stopCatChase();
-    stopRoundTimer();
     return;
   }
 
@@ -504,11 +548,12 @@ function handleCanvasTouchEnd(event) {
 
 function startGame() {
   stopCatChase();
-  stopRoundTimer();
   mazeSize = parseInt(sizeSelect.value, 10);
   const speedPreset = SPEED_PRESETS[speedSelect.value] || SPEED_PRESETS.normal;
   catBaseDelay = speedPreset.base;
   catMinDelay = speedPreset.min;
+  const intelligenceKey = getSelectedIntelligenceKey();
+  catIntelligenceProfile = INTELLIGENCE_PROFILES[intelligenceKey] || INTELLIGENCE_PROFILES.smart;
   maze = carvePassages(mazeSize);
   addAlternateRoute(maze);
   addAlternateRoute(maze);
@@ -522,7 +567,6 @@ function startGame() {
   resizeCanvas(false);
   drawMaze();
   startCatChase();
-  startRoundTimer();
 }
 
 regenBtn.addEventListener('pointerdown', event => {
@@ -543,6 +587,9 @@ regenBtn.addEventListener('click', event => {
 });
 sizeSelect.addEventListener('change', startGame);
 speedSelect.addEventListener('change', startGame);
+if (intelligenceSelect) {
+  intelligenceSelect.addEventListener('change', startGame);
+}
 window.addEventListener('keydown', handleKeydown);
 window.addEventListener('resize', () => resizeCanvas(true));
 canvas.addEventListener('touchstart', handleCanvasTouchStart, { passive: false });

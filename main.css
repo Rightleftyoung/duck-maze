@@ -62,11 +62,6 @@ select:hover {
   font-weight: 600;
 }
 
-#timer {
-  font-weight: 600;
-  margin-top: 4px;
-}
-
 .maze-area {
   width: 100%;
 }
