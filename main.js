@@ -8,6 +8,11 @@ const intelligenceSelect = document.getElementById('intelligence');
 const touchButtons = document.querySelectorAll('.touch-controls button');
 const appEl = document.querySelector('.app');
 const mazeAreaEl = document.querySelector('.maze-area');
+const pointsEl = document.getElementById('points');
+const stunBtn = document.getElementById('stun');
+const reverseRolesToggle = document.getElementById('reverseRoles');
+const speedLabelEl = document.getElementById('speedLabel');
+const intelligenceLabelEl = document.getElementById('intelligenceLabel');
 
 const DIRS = {
   top: { dr: -1, dc: 0 },
@@ -29,9 +34,10 @@ const KEY_TO_DIR = {
 
 let maze = [];
 let mazeSize = parseInt(sizeSelect.value, 10);
-let player = { row: 0, col: 0 };
+let duck = { row: 0, col: 0 };
 let goal = { row: mazeSize - 1, col: mazeSize - 1 };
 let cat = { row: mazeSize - 1, col: 0 };
+let playerCharacter = 'duck';
 let gameWon = false;
 let gameLost = false;
 let catMoveTimeoutId = null;
@@ -43,6 +49,8 @@ let canvasDisplaySize = 600;
 let touchStartPoint = null;
 let lastPlayerDirection = 'right';
 let catIntelligenceProfile;
+let points = 0;
+let catStunnedUntil = 0;
 
 const SPEED_PRESETS = {
   chill: { base: 860, min: 320 },
@@ -56,11 +64,141 @@ const INTELLIGENCE_PROFILES = {
 };
 const MAX_CANVAS_SIZE = 900;
 const DASH_DISTANCE_THRESHOLD = 3;
+const STUN_COST = 500;
+const STUN_DURATION_MS = 5000;
+const POINTS_STORAGE_KEY = 'duckMazePoints';
+const BASE_REWARD_POINTS = 120;
+const SPEED_REWARD_MULTIPLIERS = { chill: 0.85, normal: 1, furious: 1.25 };
+const INTELLIGENCE_REWARD_MULTIPLIERS = { simple: 0.9, smart: 1.15, hunter: 1.35 };
+
+function updateRoleLabels() {
+  const chaserLabel = getChaserDisplayName(true);
+  if (speedLabelEl) {
+    speedLabelEl.textContent = `${chaserLabel} Speed`;
+  }
+  if (intelligenceLabelEl) {
+    intelligenceLabelEl.textContent = `${chaserLabel} Intelligence`;
+  }
+  if (stunBtn) {
+    stunBtn.textContent = `Stun ${chaserLabel} (${STUN_COST} pts)`;
+  }
+}
 
 catIntelligenceProfile = INTELLIGENCE_PROFILES.smart;
+points = loadStoredPoints();
+updatePointsDisplay();
+updateRoleLabels();
 
 function getSelectedIntelligenceKey() {
   return intelligenceSelect?.value ?? 'smart';
+}
+
+function isCatChaser() {
+  return playerCharacter === 'duck';
+}
+
+function getPlayer() {
+  return playerCharacter === 'duck' ? duck : cat;
+}
+
+function setPlayerPosition(position) {
+  if (playerCharacter === 'duck') {
+    duck = position;
+  } else {
+    cat = position;
+  }
+}
+
+function getChaser() {
+  return isCatChaser() ? cat : duck;
+}
+
+function setChaserPosition(position) {
+  if (isCatChaser()) {
+    cat = position;
+  } else {
+    duck = position;
+  }
+}
+
+function capitalize(word) {
+  if (!word) return '';
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+function getChaserDisplayName(capitalizeName = false) {
+  const name = isCatChaser() ? 'cat' : 'duck';
+  return capitalizeName ? capitalize(name) : name;
+}
+
+
+function loadStoredPoints() {
+  try {
+    const stored = localStorage.getItem(POINTS_STORAGE_KEY);
+    const value = parseInt(stored, 10);
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function persistPoints() {
+  try {
+    localStorage.setItem(POINTS_STORAGE_KEY, String(points));
+  } catch {
+    // Ignore storage failures; points just won't persist this round.
+  }
+}
+
+function updatePointsDisplay() {
+  if (pointsEl) {
+    pointsEl.textContent = points.toString();
+  }
+  updateStunButtonState();
+}
+
+function isCatStunned() {
+  return Date.now() < catStunnedUntil;
+}
+
+function updateStunButtonState() {
+  if (!stunBtn) return;
+  const playable = !gameWon && !gameLost;
+  const available = !isCatStunned();
+  stunBtn.disabled = !(playable && available && points >= STUN_COST);
+}
+
+function calculateWinReward() {
+  const sizeFactor = Math.max(1, mazeSize / 10);
+  const speedFactor = SPEED_REWARD_MULTIPLIERS[speedSelect.value] ?? 1;
+  const intelligenceFactor = INTELLIGENCE_REWARD_MULTIPLIERS[getSelectedIntelligenceKey()] ?? 1;
+  const reward = Math.round(BASE_REWARD_POINTS * sizeFactor * speedFactor * intelligenceFactor);
+  return Math.max(40, reward);
+}
+
+function awardWinPoints() {
+  const reward = calculateWinReward();
+  points += reward;
+  persistPoints();
+  updatePointsDisplay();
+  return reward;
+}
+
+function handleStunClick() {
+  if (!stunBtn || stunBtn.disabled || points < STUN_COST || gameWon || gameLost) return;
+  points -= STUN_COST;
+  persistPoints();
+  catStunnedUntil = Date.now() + STUN_DURATION_MS;
+  const chaserName = getChaserDisplayName(true);
+  statusEl.textContent = `Zap! The ${chaserName} is stunned — make a run for it!`;
+  updatePointsDisplay();
+  setTimeout(() => {
+    updateStunButtonState();
+    if (!gameWon && !gameLost && !isCatStunned()) {
+      const refreshedName = getChaserDisplayName(true);
+      statusEl.textContent = `The ${refreshedName} shook it off! Keep moving!`;
+    }
+  }, STUN_DURATION_MS);
 }
 
 function createGrid(size) {
@@ -246,13 +384,14 @@ function greedyStepToward(start, target) {
 function predictPlayerPosition() {
   const divisor = catIntelligenceProfile?.predictionDivisor ?? 6;
   const predictionSteps = divisor >= 999 ? 0 : Math.max(1, Math.floor(mazeSize / divisor));
-  let simulated = { ...player };
+  const playerPos = getPlayer();
+  let simulated = { ...playerPos };
   for (let i = 0; i < predictionSteps; i += 1) {
     const next = stepFrom(simulated, lastPlayerDirection);
     if (!next) break;
     simulated = next;
   }
-  if (simulated.row === player.row && simulated.col === player.col) {
+  if (simulated.row === playerPos.row && simulated.col === playerPos.col) {
     const greedy = greedyStepToward(simulated, goal);
     if (greedy) {
       simulated = greedy;
@@ -261,19 +400,23 @@ function predictPlayerPosition() {
   return simulated;
 }
 
-function getCatTarget() {
+function getChaserTarget() {
   const predicted = predictPlayerPosition();
-  const playerDistanceToGoal = manhattan(player, goal);
-  const catDistanceToGoal = manhattan(cat, goal);
+  const playerPos = getPlayer();
+  const playerDistanceToGoal = manhattan(playerPos, goal);
+  const chaser = getChaser();
+  const chaserDistanceToGoal = manhattan(chaser, goal);
   const focus = catIntelligenceProfile?.goalFocus ?? 0.5;
-  if (focus > 0 && playerDistanceToGoal < catDistanceToGoal * focus) {
+  if (focus > 0 && playerDistanceToGoal < chaserDistanceToGoal * focus) {
     return goal;
   }
   return predicted;
 }
 
 function shouldCatDash() {
-  const distance = manhattan(cat, player);
+  const chaser = getChaser();
+  const playerPos = getPlayer();
+  const distance = manhattan(chaser, playerPos);
   const divisor = catIntelligenceProfile?.dashDistanceDivisor ?? 5;
   return distance <= Math.max(DASH_DISTANCE_THRESHOLD, Math.floor(mazeSize / divisor));
 }
@@ -318,8 +461,8 @@ function drawMaze() {
 }
 
 function drawDuck(cellSize) {
-  const x = player.col * cellSize + cellSize / 2;
-  const y = player.row * cellSize + cellSize / 2;
+  const x = duck.col * cellSize + cellSize / 2;
+  const y = duck.row * cellSize + cellSize / 2;
   const radius = cellSize * 0.3;
 
   ctx.fillStyle = '#ffe066';
@@ -409,10 +552,11 @@ function moveCatTowardPlayer() {
   let moved = false;
 
   for (let i = 0; i < stepsToTake; i += 1) {
-    const target = getCatTarget();
-    const next = nextStepTowards(cat, target);
-    if (!next || (next.row === cat.row && next.col === cat.col)) break;
-    cat = next;
+    const chaser = getChaser();
+    const target = getChaserTarget();
+    const next = nextStepTowards(chaser, target);
+    if (!next || (next.row === chaser.row && next.col === chaser.col)) break;
+    setChaserPosition(next);
     moved = true;
     if (checkCatCatch()) {
       drawMaze();
@@ -434,7 +578,8 @@ function getCatDelay() {
 
 function catAggressionFactor() {
   const maxDistance = (mazeSize - 1) * 2 || 1;
-  const distance = Math.abs(player.row - goal.row) + Math.abs(player.col - goal.col);
+  const playerPos = getPlayer();
+  const distance = Math.abs(playerPos.row - goal.row) + Math.abs(playerPos.col - goal.col);
   const progressTowardGoal = 1 - distance / maxDistance;
   const timeFactor = Math.min(1, catMovesTaken / (mazeSize * mazeSize || 1));
   return Math.max(progressTowardGoal, timeFactor);
@@ -443,6 +588,12 @@ function catAggressionFactor() {
 function scheduleCatMove() {
   if (!maze.length || gameWon || gameLost) return;
   catMoveTimeoutId = setTimeout(() => {
+    if (!maze.length || gameWon || gameLost) return;
+    if (isCatStunned()) {
+      updateStunButtonState();
+      scheduleCatMove();
+      return;
+    }
     moveCatTowardPlayer();
     catMovesTaken += 1;
     scheduleCatMove();
@@ -463,10 +614,14 @@ function stopCatChase() {
 }
 
 function checkCatCatch() {
-  if (player.row === cat.row && player.col === cat.col) {
+  const playerPos = getPlayer();
+  const chaser = getChaser();
+  if (playerPos.row === chaser.row && playerPos.col === chaser.col) {
     gameLost = true;
     stopCatChase();
-    statusEl.textContent = 'Oh no! The cat caught you. Hit New Maze to try again.';
+    const chaserName = getChaserDisplayName(true);
+    statusEl.textContent = `Oh no! The ${chaserName} caught you. Hit New Maze to try again.`;
+    updateStunButtonState();
     return true;
   }
   return false;
@@ -495,24 +650,31 @@ function resizeCanvas(redraw = true) {
 
 function handleMove(direction) {
   if (!direction || gameWon || gameLost) return;
-  const cell = maze[player.row]?.[player.col];
+  const playerPos = getPlayer();
+  const cell = maze[playerPos.row]?.[playerPos.col];
   if (!cell || cell.walls[direction]) return;
 
   const { dr, dc } = DIRS[direction];
-  player = { row: player.row + dr, col: player.col + dc };
+  const nextRow = playerPos.row + dr;
+  const nextCol = playerPos.col + dc;
+  setPlayerPosition({ row: nextRow, col: nextCol });
   lastPlayerDirection = direction;
   drawMaze();
 
-  if (player.row === goal.row && player.col === goal.col) {
+  const updatedPlayer = getPlayer();
+  if (updatedPlayer.row === goal.row && updatedPlayer.col === goal.col) {
     gameWon = true;
-    statusEl.textContent = 'Quack! You found the pond! You escaped the cat!';
     stopCatChase();
+    const reward = awardWinPoints();
+    statusEl.textContent = `Nice! You reached the pond and earned ${reward} pts!`;
+    updateStunButtonState();
     return;
   }
 
   if (checkCatCatch()) return;
 
-  statusEl.textContent = 'Keep waddling...';
+  statusEl.textContent = 'Keep moving...';
+  updateStunButtonState();
 }
 
 function handleKeydown(event) {
@@ -548,22 +710,29 @@ function handleCanvasTouchEnd(event) {
 
 function startGame() {
   stopCatChase();
+  catStunnedUntil = 0;
   mazeSize = parseInt(sizeSelect.value, 10);
   const speedPreset = SPEED_PRESETS[speedSelect.value] || SPEED_PRESETS.normal;
   catBaseDelay = speedPreset.base;
   catMinDelay = speedPreset.min;
   const intelligenceKey = getSelectedIntelligenceKey();
   catIntelligenceProfile = INTELLIGENCE_PROFILES[intelligenceKey] || INTELLIGENCE_PROFILES.smart;
+  const reverseRolesSelected = Boolean(reverseRolesToggle?.checked);
+  playerCharacter = reverseRolesSelected ? 'cat' : 'duck';
   maze = carvePassages(mazeSize);
   addAlternateRoute(maze);
   addAlternateRoute(maze);
   ensureStartFork(maze);
-  player = { row: 0, col: 0 };
+  duck = { row: 0, col: 0 };
   goal = { row: mazeSize - 1, col: mazeSize - 1 };
   cat = { row: mazeSize - 1, col: 0 };
+  lastPlayerDirection = 'right';
   gameWon = false;
   gameLost = false;
-  statusEl.textContent = 'Find the pond before the cat finds you!';
+  updateRoleLabels();
+  const chaserName = getChaserDisplayName();
+  statusEl.textContent = `Find the pond before the ${chaserName} finds you!`;
+  updateStunButtonState();
   resizeCanvas(false);
   drawMaze();
   startCatChase();
@@ -589,6 +758,15 @@ sizeSelect.addEventListener('change', startGame);
 speedSelect.addEventListener('change', startGame);
 if (intelligenceSelect) {
   intelligenceSelect.addEventListener('change', startGame);
+}
+if (reverseRolesToggle) {
+  reverseRolesToggle.addEventListener('change', startGame);
+}
+if (stunBtn) {
+  stunBtn.addEventListener('click', event => {
+    event.preventDefault();
+    handleStunClick();
+  });
 }
 window.addEventListener('keydown', handleKeydown);
 window.addEventListener('resize', () => resizeCanvas(true));

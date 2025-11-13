@@ -23,7 +23,7 @@
         </select>
       </label>
       <label>
-        Cat Speed
+        <span id="speedLabel">Cat Speed</span>
         <select id="speed">
           <option value="chill">Chill</option>
           <option value="normal" selected>Normal</option>
@@ -31,13 +31,21 @@
         </select>
       </label>
       <label>
-        Cat Intelligence
+        <span id="intelligenceLabel">Cat Intelligence</span>
         <select id="intelligence">
           <option value="simple">Playful</option>
           <option value="smart" selected>Smart</option>
           <option value="hunter">Hunter</option>
         </select>
       </label>
+      <label class="reverse-toggle">
+        <input id="reverseRoles" type="checkbox" />
+        Reverse Roles (duck hunts you)
+      </label>
+    </section>
+    <section class="points-bar">
+      <p class="points-display">Points: <span id="points">0</span></p>
+      <button id="stun" type="button">Stun Cat (500 pts)</button>
     </section>
     <section class="status-block">
       <p id="status" role="status" aria-live="polite"></p>
