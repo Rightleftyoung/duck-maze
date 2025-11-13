@@ -817,7 +817,7 @@ function startGame() {
   updateRoleLabels();
   const statusMessage = playerControlsDuck()
     ? `Find the pond before the ${getAICharacterDisplayName()} finds you!`
-    : 'Chase down the duck before it reaches the pond!';
+    : 'Hunt the duck before it reaches the pond!';
   statusEl.textContent = statusMessage;
   updateStunButtonState();
   resizeCanvas(false);
