@@ -13,6 +13,7 @@ const stunBtn = document.getElementById('stun');
 const reverseRolesToggle = document.getElementById('reverseRoles');
 const speedLabelEl = document.getElementById('speedLabel');
 const intelligenceLabelEl = document.getElementById('intelligenceLabel');
+const roleHintEl = document.getElementById('roleHint');
 
 const DIRS = {
   top: { dr: -1, dc: 0 },
@@ -82,12 +83,21 @@ function updateRoleLabels() {
   if (stunBtn) {
     stunBtn.textContent = `Stun ${chaserLabel} (${STUN_COST} pts)`;
   }
+  updateRoleHint();
 }
 
 catIntelligenceProfile = INTELLIGENCE_PROFILES.smart;
 points = loadStoredPoints();
 updatePointsDisplay();
 updateRoleLabels();
+
+function updateRoleHint() {
+  if (!roleHintEl) return;
+  const hint = playerControlsDuck()
+    ? 'You are the duck — reach the pond before the cat.'
+    : 'You are the cat — hunt the duck before it escapes.';
+  roleHintEl.textContent = hint;
+}
 
 function getSelectedIntelligenceKey() {
   return intelligenceSelect?.value ?? 'smart';
@@ -465,6 +475,7 @@ function drawMaze() {
   drawGoal(cellSize);
   drawCat(cellSize);
   drawDuck(cellSize);
+  drawPlayerIndicator(cellSize);
 }
 
 function drawDuck(cellSize) {
@@ -550,6 +561,17 @@ function drawCat(cellSize) {
   ctx.beginPath();
   ctx.arc(x, y + radius * 0.1, radius * 0.12, 0, Math.PI * 2);
   ctx.fill();
+}
+
+function drawPlayerIndicator(cellSize) {
+  const playerPos = getPlayerPosition();
+  const x = playerPos.col * cellSize + cellSize / 2;
+  const y = playerPos.row * cellSize + cellSize / 2;
+  ctx.strokeStyle = '#ff6b6b';
+  ctx.lineWidth = Math.max(2, cellSize * 0.05);
+  ctx.beginPath();
+  ctx.arc(x, y, cellSize * 0.42, 0, Math.PI * 2);
+  ctx.stroke();
 }
 
 function moveAICharacter() {
