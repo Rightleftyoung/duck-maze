@@ -72,7 +72,7 @@ const SPEED_REWARD_MULTIPLIERS = { chill: 0.85, normal: 1, furious: 1.25 };
 const INTELLIGENCE_REWARD_MULTIPLIERS = { simple: 0.9, smart: 1.15, hunter: 1.35 };
 
 function updateRoleLabels() {
-  const chaserLabel = getChaserDisplayName(true);
+  const chaserLabel = getAICharacterDisplayName(true);
   if (speedLabelEl) {
     speedLabelEl.textContent = `${chaserLabel} Speed`;
   }
@@ -93,28 +93,28 @@ function getSelectedIntelligenceKey() {
   return intelligenceSelect?.value ?? 'smart';
 }
 
-function isCatChaser() {
+function playerControlsDuck() {
   return playerCharacter === 'duck';
 }
 
-function getPlayer() {
-  return playerCharacter === 'duck' ? duck : cat;
+function getPlayerPosition() {
+  return playerControlsDuck() ? duck : cat;
 }
 
 function setPlayerPosition(position) {
-  if (playerCharacter === 'duck') {
+  if (playerControlsDuck()) {
     duck = position;
   } else {
     cat = position;
   }
 }
 
-function getChaser() {
-  return isCatChaser() ? cat : duck;
+function getAIPosition() {
+  return playerControlsDuck() ? cat : duck;
 }
 
-function setChaserPosition(position) {
-  if (isCatChaser()) {
+function setAIPosition(position) {
+  if (playerControlsDuck()) {
     cat = position;
   } else {
     duck = position;
@@ -126,8 +126,8 @@ function capitalize(word) {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
-function getChaserDisplayName(capitalizeName = false) {
-  const name = isCatChaser() ? 'cat' : 'duck';
+function getAICharacterDisplayName(capitalizeName = false) {
+  const name = playerControlsDuck() ? 'cat' : 'duck';
   return capitalizeName ? capitalize(name) : name;
 }
 
@@ -189,13 +189,13 @@ function handleStunClick() {
   points -= STUN_COST;
   persistPoints();
   catStunnedUntil = Date.now() + STUN_DURATION_MS;
-  const chaserName = getChaserDisplayName(true);
+  const chaserName = getAICharacterDisplayName(true);
   statusEl.textContent = `Zap! The ${chaserName} is stunned — make a run for it!`;
   updatePointsDisplay();
   setTimeout(() => {
     updateStunButtonState();
     if (!gameWon && !gameLost && !isCatStunned()) {
-      const refreshedName = getChaserDisplayName(true);
+      const refreshedName = getAICharacterDisplayName(true);
       statusEl.textContent = `The ${refreshedName} shook it off! Keep moving!`;
     }
   }, STUN_DURATION_MS);
@@ -382,9 +382,12 @@ function greedyStepToward(start, target) {
 }
 
 function predictPlayerPosition() {
+  if (!playerControlsDuck()) {
+    return getPlayerPosition();
+  }
   const divisor = catIntelligenceProfile?.predictionDivisor ?? 6;
   const predictionSteps = divisor >= 999 ? 0 : Math.max(1, Math.floor(mazeSize / divisor));
-  const playerPos = getPlayer();
+  const playerPos = getPlayerPosition();
   let simulated = { ...playerPos };
   for (let i = 0; i < predictionSteps; i += 1) {
     const next = stepFrom(simulated, lastPlayerDirection);
@@ -401,11 +404,14 @@ function predictPlayerPosition() {
 }
 
 function getChaserTarget() {
+  if (!playerControlsDuck()) {
+    return goal;
+  }
   const predicted = predictPlayerPosition();
-  const playerPos = getPlayer();
+  const playerPos = getPlayerPosition();
   const playerDistanceToGoal = manhattan(playerPos, goal);
-  const chaser = getChaser();
-  const chaserDistanceToGoal = manhattan(chaser, goal);
+  const ai = getAIPosition();
+  const chaserDistanceToGoal = manhattan(ai, goal);
   const focus = catIntelligenceProfile?.goalFocus ?? 0.5;
   if (focus > 0 && playerDistanceToGoal < chaserDistanceToGoal * focus) {
     return goal;
@@ -414,9 +420,10 @@ function getChaserTarget() {
 }
 
 function shouldCatDash() {
-  const chaser = getChaser();
-  const playerPos = getPlayer();
-  const distance = manhattan(chaser, playerPos);
+  if (!playerControlsDuck()) return false;
+  const ai = getAIPosition();
+  const playerPos = getPlayerPosition();
+  const distance = manhattan(ai, playerPos);
   const divisor = catIntelligenceProfile?.dashDistanceDivisor ?? 5;
   return distance <= Math.max(DASH_DISTANCE_THRESHOLD, Math.floor(mazeSize / divisor));
 }
@@ -545,20 +552,28 @@ function drawCat(cellSize) {
   ctx.fill();
 }
 
-function moveCatTowardPlayer() {
+function moveAICharacter() {
   if (!maze.length || gameWon || gameLost) return;
+  if (playerControlsDuck()) {
+    moveCatHunter();
+  } else {
+    moveDuckEscapee();
+  }
+}
+
+function moveCatHunter() {
   const profileDashSteps = catIntelligenceProfile?.dashSteps ?? 2;
   const stepsToTake = shouldCatDash() ? profileDashSteps : 1;
   let moved = false;
 
   for (let i = 0; i < stepsToTake; i += 1) {
-    const chaser = getChaser();
+    const ai = getAIPosition();
     const target = getChaserTarget();
-    const next = nextStepTowards(chaser, target);
-    if (!next || (next.row === chaser.row && next.col === chaser.col)) break;
-    setChaserPosition(next);
+    const next = nextStepTowards(ai, target);
+    if (!next || (next.row === ai.row && next.col === ai.col)) break;
+    setAIPosition(next);
     moved = true;
-    if (checkCatCatch()) {
+    if (checkCatchStatesAfterAIMove()) {
       drawMaze();
       return;
     }
@@ -566,8 +581,17 @@ function moveCatTowardPlayer() {
 
   if (moved) {
     drawMaze();
-    checkCatCatch();
+    checkCatchStatesAfterAIMove();
   }
+}
+
+function moveDuckEscapee() {
+  const duckPos = getAIPosition();
+  const next = nextStepTowards(duckPos, goal);
+  if (!next || (next.row === duckPos.row && next.col === duckPos.col)) return;
+  setAIPosition(next);
+  drawMaze();
+  checkCatchStatesAfterAIMove();
 }
 
 function getCatDelay() {
@@ -578,8 +602,8 @@ function getCatDelay() {
 
 function catAggressionFactor() {
   const maxDistance = (mazeSize - 1) * 2 || 1;
-  const playerPos = getPlayer();
-  const distance = Math.abs(playerPos.row - goal.row) + Math.abs(playerPos.col - goal.col);
+  const referencePos = playerControlsDuck() ? getPlayerPosition() : getAIPosition();
+  const distance = Math.abs(referencePos.row - goal.row) + Math.abs(referencePos.col - goal.col);
   const progressTowardGoal = 1 - distance / maxDistance;
   const timeFactor = Math.min(1, catMovesTaken / (mazeSize * mazeSize || 1));
   return Math.max(progressTowardGoal, timeFactor);
@@ -594,7 +618,7 @@ function scheduleCatMove() {
       scheduleCatMove();
       return;
     }
-    moveCatTowardPlayer();
+    moveAICharacter();
     catMovesTaken += 1;
     scheduleCatMove();
   }, getCatDelay());
@@ -613,18 +637,55 @@ function stopCatChase() {
   }
 }
 
-function checkCatCatch() {
-  const playerPos = getPlayer();
-  const chaser = getChaser();
-  if (playerPos.row === chaser.row && playerPos.col === chaser.col) {
+function checkPlayerCaughtByAI() {
+  if (!playerControlsDuck()) return false;
+  const playerPos = getPlayerPosition();
+  const aiPos = getAIPosition();
+  if (playerPos.row === aiPos.row && playerPos.col === aiPos.col) {
     gameLost = true;
     stopCatChase();
-    const chaserName = getChaserDisplayName(true);
-    statusEl.textContent = `Oh no! The ${chaserName} caught you. Hit New Maze to try again.`;
+    const aiName = getAICharacterDisplayName(true);
+    statusEl.textContent = `Oh no! The ${aiName} caught you. Hit New Maze to try again.`;
     updateStunButtonState();
     return true;
   }
   return false;
+}
+
+function checkPlayerCatchesAI() {
+  if (playerControlsDuck()) return false;
+  const playerPos = getPlayerPosition();
+  const aiPos = getAIPosition();
+  if (playerPos.row === aiPos.row && playerPos.col === aiPos.col) {
+    gameWon = true;
+    stopCatChase();
+    const reward = awardWinPoints();
+    statusEl.textContent = `Nice! You caught the duck and earned ${reward} pts!`;
+    updateStunButtonState();
+    return true;
+  }
+  return false;
+}
+
+function checkDuckEscaped() {
+  if (playerControlsDuck()) return false;
+  const aiPos = getAIPosition();
+  if (aiPos.row === goal.row && aiPos.col === goal.col) {
+    gameLost = true;
+    stopCatChase();
+    statusEl.textContent = 'The duck escaped to the pond! Try again.';
+    updateStunButtonState();
+    return true;
+  }
+  return false;
+}
+
+function checkCatchStatesAfterAIMove() {
+  if (playerControlsDuck()) {
+    return checkPlayerCaughtByAI();
+  }
+  if (checkDuckEscaped()) return true;
+  return checkPlayerCatchesAI();
 }
 
 function resizeCanvas(redraw = true) {
@@ -650,7 +711,7 @@ function resizeCanvas(redraw = true) {
 
 function handleMove(direction) {
   if (!direction || gameWon || gameLost) return;
-  const playerPos = getPlayer();
+  const playerPos = getPlayerPosition();
   const cell = maze[playerPos.row]?.[playerPos.col];
   if (!cell || cell.walls[direction]) return;
 
@@ -661,8 +722,8 @@ function handleMove(direction) {
   lastPlayerDirection = direction;
   drawMaze();
 
-  const updatedPlayer = getPlayer();
-  if (updatedPlayer.row === goal.row && updatedPlayer.col === goal.col) {
+  const updatedPlayer = getPlayerPosition();
+  if (playerControlsDuck() && updatedPlayer.row === goal.row && updatedPlayer.col === goal.col) {
     gameWon = true;
     stopCatChase();
     const reward = awardWinPoints();
@@ -671,9 +732,11 @@ function handleMove(direction) {
     return;
   }
 
-  if (checkCatCatch()) return;
+  if (!playerControlsDuck() && checkPlayerCatchesAI()) return;
 
-  statusEl.textContent = 'Keep moving...';
+  if (checkPlayerCaughtByAI()) return;
+
+  statusEl.textContent = playerControlsDuck() ? 'Keep moving...' : 'Keep chasing...';
   updateStunButtonState();
 }
 
@@ -730,8 +793,10 @@ function startGame() {
   gameWon = false;
   gameLost = false;
   updateRoleLabels();
-  const chaserName = getChaserDisplayName();
-  statusEl.textContent = `Find the pond before the ${chaserName} finds you!`;
+  const statusMessage = playerControlsDuck()
+    ? `Find the pond before the ${getAICharacterDisplayName()} finds you!`
+    : 'Chase down the duck before it reaches the pond!';
+  statusEl.textContent = statusMessage;
   updateStunButtonState();
   resizeCanvas(false);
   drawMaze();
